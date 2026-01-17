@@ -79,5 +79,5 @@ df["Strategic_Leverage_Index"] = (
 
 df.to_excel("World_Power_Dataset_FEATURE_ENGINEERED.xlsx", index=False)
 
-print("✅ Feature engineering complete.")
-print("✅ Saved as: World_Power_Dataset_FEATURE_ENGINEERED.xlsx")
+print(" Feature engineering complete.")
+print(" Saved as: World_Power_Dataset_FEATURE_ENGINEERED.xlsx")
