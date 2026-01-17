@@ -113,5 +113,5 @@ df = pd.get_dummies(
 output_file = "World_Power_Dataset_CLEANED.xlsx"
 df.to_excel(output_file, index=False)
 
-print("\n✅ DATA CLEANING COMPLETE")
-print(f"✅ Final cleaned dataset saved as: {output_file}")
+print("\n DATA CLEANING COMPLETE")
+print(f" Final cleaned dataset saved as: {output_file}")
