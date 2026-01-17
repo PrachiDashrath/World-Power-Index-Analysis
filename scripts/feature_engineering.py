@@ -2,15 +2,14 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 
 # =========================================================
-# LOAD CLEANED DATASET
+# LOAD CLEANED DATASET (FROM data/)
 # =========================================================
 
-df = pd.read_excel("World_Power_Dataset_CLEANED.xlsx")
+df = pd.read_excel("data/World_Power_Dataset_CLEANED.xlsx")
 scaler = MinMaxScaler()
 
 # =========================================================
 # 1. ECONOMIC POWER INDEX
-# (Scale first → then aggregate)
 # =========================================================
 
 economic_features = [
@@ -20,7 +19,6 @@ economic_features = [
 ]
 
 economic_scaled = scaler.fit_transform(df[economic_features])
-
 df["Economic_Power_Index"] = economic_scaled.mean(axis=1)
 
 # =========================================================
@@ -35,7 +33,6 @@ military_features = [
 ]
 
 military_scaled = scaler.fit_transform(df[military_features])
-
 df["Military_Power_Index"] = military_scaled.mean(axis=1)
 
 # =========================================================
@@ -49,7 +46,6 @@ tech_features = [
 ]
 
 tech_scaled = scaler.fit_transform(df[tech_features])
-
 df["Tech_Power_Index"] = tech_scaled.mean(axis=1)
 
 # =========================================================
@@ -71,13 +67,14 @@ df["Strategic_Leverage_Index"] = (
     - strategic_scaled[:, 1]   # Energy Import Dependency
     + strategic_scaled[:, 2]   # Chokepoints
     + strategic_scaled[:, 3]   # Diplomacy
-) / 3  # normalize range
+) / 4  # normalize across four components
 
 # =========================================================
-# SAVE FEATURE-ENGINEERED DATASET
+# SAVE FEATURE-ENGINEERED DATASET (TO data/)
 # =========================================================
 
-df.to_excel("World_Power_Dataset_FEATURE_ENGINEERED.xlsx", index=False)
+output_file = "data/World_Power_Dataset_FEATURE_ENGINEERED.xlsx"
+df.to_excel(output_file, index=False)
 
 print(" Feature engineering complete.")
-print(" Saved as: World_Power_Dataset_FEATURE_ENGINEERED.xlsx")
+print(f" Saved as: {output_file}")

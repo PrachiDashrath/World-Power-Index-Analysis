@@ -6,7 +6,7 @@ import seaborn as sns
 # LOAD CLEANED DATASET
 # =====================================================
 
-df = pd.read_excel("World_Power_Dataset_CLEANED.xlsx")
+df = pd.read_excel("data/World_Power_Dataset_CLEANED.xlsx")
 
 # =====================================================
 # 1. DISTRIBUTION OF TARGET
@@ -37,19 +37,12 @@ plt.title("Top Correlated Features with World Power Index")
 plt.show()
 
 # =====================================================
-# 3. POLITICAL SYSTEM vs WORLD POWER (FIXED PROPERLY)
+# 3. POLITICAL SYSTEM vs WORLD POWER
 # =====================================================
 
-# Step 1: force boolean → int
-df["Political_System_Type_Hybrid"] = df["Political_System_Type_Hybrid"].astype(int)
-
-# Step 2: create clean categorical label
 df["Political_System_Label"] = df["Political_System_Type_Hybrid"].apply(
     lambda x: "Hybrid" if x == 1 else "Non-Hybrid"
 )
-
-# Step 3: enforce categorical dtype
-df["Political_System_Label"] = df["Political_System_Label"].astype("category")
 
 plt.figure(figsize=(6,4))
 sns.boxplot(

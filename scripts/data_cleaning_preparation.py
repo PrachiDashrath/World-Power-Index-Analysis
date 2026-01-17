@@ -7,10 +7,10 @@ import pandas as pd
 import numpy as np
 
 # =========================================================
-# 1. LOAD RAW DATASET
+# 1. LOAD RAW DATASET (FROM data/)
 # =========================================================
 
-df = pd.read_excel("World_Power_Dataset.xlsx")
+df = pd.read_excel("data/World_Power_Dataset.xlsx")
 print("Loaded dataset shape:", df.shape)
 
 # =========================================================
@@ -107,10 +107,10 @@ df = pd.get_dummies(
 )
 
 # =========================================================
-# 8. SAVE FINAL CLEANED DATASET (ONLY OUTPUT)
+# 8. SAVE FINAL CLEANED DATASET (TO data/)
 # =========================================================
 
-output_file = "World_Power_Dataset_CLEANED.xlsx"
+output_file = "data/World_Power_Dataset_CLEANED.xlsx"
 df.to_excel(output_file, index=False)
 
 print("\n DATA CLEANING COMPLETE")
