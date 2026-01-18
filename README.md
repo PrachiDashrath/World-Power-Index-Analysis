@@ -156,18 +156,3 @@ python scripts/eda_analysis.py
 python scripts/feature_engineering.py
 python scripts/modeling.py
 
-
-
----
-
-## 📌 Small Status Update (replace existing Status section)
-
-md
-## Status
-- Data cleaning: ✅ Completed  
-- EDA: ✅ Completed  
-- Feature engineering: ✅ Completed  
-- Modeling & Evaluation: ✅ Completed  
-- Presentation & Insights: 🔄 In progress
-
-```
