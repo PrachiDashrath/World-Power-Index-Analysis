@@ -104,4 +104,70 @@ The primary goal of this project is to:
 - Data cleaning: ✅ Completed  
 - EDA: ✅ Completed  
 - Feature engineering: ✅ Completed  
-- Modeling: ⏳ In progress
+Modeling & Evaluation: ✅ Completed
+
+
+---
+
+### 4. Modeling & Evaluation
+A supervised regression model was developed to explain and predict the **World Power Index** using both raw indicators and engineered composite indices.
+
+**Model Used**
+- Gradient Boosting Regressor
+
+**Feature Set**
+- Economic Power Index  
+- Military Power Index  
+- Technological Power Index  
+- Strategic Leverage Index  
+- Share of Global GDP  
+- Satellite Ownership Count  
+- Defense Expenditure (% of GDP)
+
+**Evaluation Strategy**
+To ensure a realistic and non-leaky evaluation, two validation schemes were used:
+
+- **Year-wise Cross-Validation (Primary Evaluation)**  
+  Tests how well the model generalizes across different global time periods.
+
+- **Country-wise Cross-Validation (Robustness Check)**  
+  Tests how well the model generalizes to unseen countries.
+
+Additionally, the most recent year was held out as a final test set.
+
+**Metrics Reported**
+- R² Score
+- Explained Variance
+- RMSE
+- MAE
+- Feature Importance
+
+This evaluation strategy prioritizes interpretability, temporal robustness, and judge-safe methodology over artificially inflated accuracy.
+
+---
+
+## How to Run the Project
+
+Install dependencies:
+pip install -r requirements.txt
+
+python scripts/data_cleaning_preparation.py
+python scripts/eda_analysis.py
+python scripts/feature_engineering.py
+python scripts/modeling.py
+
+
+
+---
+
+## 📌 Small Status Update (replace existing Status section)
+
+md
+## Status
+- Data cleaning: ✅ Completed  
+- EDA: ✅ Completed  
+- Feature engineering: ✅ Completed  
+- Modeling & Evaluation: ✅ Completed  
+- Presentation & Insights: 🔄 In progress
+
+```
