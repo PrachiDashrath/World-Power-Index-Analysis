@@ -149,10 +149,14 @@ This evaluation strategy prioritizes interpretability, temporal robustness, and 
 ## How to Run the Project
 
 Install dependencies:
+
 pip install -r requirements.txt
 
 python scripts/data_cleaning_preparation.py
+
 python scripts/eda_analysis.py
+
 python scripts/feature_engineering.py
+
 python scripts/modeling.py
 
