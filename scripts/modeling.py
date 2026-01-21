@@ -1,14 +1,15 @@
 # =====================================================
 # World Power Index Modeling
-# Year-wise CV (Primary) and Country-wise CV (Robustness)
+# ElasticNet with Interpretable Interaction Features
+# Year-wise CV (Primary) + Country-wise CV (Robustness)
 # =====================================================
 
 import pandas as pd
 import numpy as np
 
 from sklearn.model_selection import LeaveOneGroupOut, GroupKFold, cross_val_score
-from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, PolynomialFeatures
+from sklearn.linear_model import ElasticNet
 from sklearn.metrics import (
     r2_score,
     mean_absolute_error,
@@ -17,14 +18,14 @@ from sklearn.metrics import (
 )
 
 # -----------------------------------------------------
-# 1. Load Feature-Engineered Dataset
+# 1. Load Dataset
 # -----------------------------------------------------
 
-df = pd.read_excel("data/World_Power_Dataset_FEATURE_ENGINEERED.xlsx")
+df = pd.read_excel("data/World_Power_Dataset_Combined.xlsx")
 
 target = "World_Power_Index"
 
-features = [
+base_features = [
     "Economic_Power_Index",
     "Military_Power_Index",
     "Tech_Power_Index",
@@ -34,33 +35,58 @@ features = [
     "Defense_Expenditure_pct_GDP"
 ]
 
-X = df[features]
+df[base_features] = df[base_features].apply(pd.to_numeric, errors="coerce")
+
+X = df[base_features]
 y = df[target]
 
 years = df["Year"]
 countries = df["Country_Name"]
 
 # -----------------------------------------------------
-# 2. Feature Scaling
+# 2. Interaction Features (RENAMED FOR CLARITY)
+# -----------------------------------------------------
+
+poly = PolynomialFeatures(
+    degree=2,
+    interaction_only=True,
+    include_bias=False
+)
+
+X_poly = poly.fit_transform(X)
+raw_feature_names = poly.get_feature_names_out(base_features)
+
+# Clean interaction names (A B → A x B)
+clean_feature_names = []
+for name in raw_feature_names:
+    if " " in name:
+        parts = name.split(" ")
+        clean_feature_names.append(f"{parts[0]} x {parts[1]}")
+    else:
+        clean_feature_names.append(name)
+
+X_poly = pd.DataFrame(X_poly, columns=clean_feature_names)
+
+# -----------------------------------------------------
+# 3. Scaling
 # -----------------------------------------------------
 
 scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
+X_scaled = scaler.fit_transform(X_poly)
 
 # -----------------------------------------------------
-# 3. Model Definition
+# 4. ElasticNet Model (Regularized & Interpretable)
 # -----------------------------------------------------
 
-model = GradientBoostingRegressor(
-    n_estimators=500,
-    learning_rate=0.03,
-    max_depth=3,
-    subsample=0.85,
+model = ElasticNet(
+    alpha=0.01,
+    l1_ratio=0.5,
+    max_iter=5000,
     random_state=42
 )
 
 # -----------------------------------------------------
-# 4. Year-wise Cross-Validation (Primary Evaluation)
+# 5. Year-wise Cross-Validation (PRIMARY)
 # -----------------------------------------------------
 
 logo_year = LeaveOneGroupOut()
@@ -75,7 +101,7 @@ year_cv_r2 = cross_val_score(
 )
 
 # -----------------------------------------------------
-# 5. Country-wise Cross-Validation (Robustness Check)
+# 6. Country-wise Cross-Validation (ROBUSTNESS)
 # -----------------------------------------------------
 
 gkf_country = GroupKFold(n_splits=5)
@@ -90,7 +116,7 @@ country_cv_r2 = cross_val_score(
 )
 
 # -----------------------------------------------------
-# 6. Final Train-Test Evaluation (Held-out Year)
+# 7. Held-out Year Evaluation
 # -----------------------------------------------------
 
 train_idx, test_idx = list(logo_year.split(X_scaled, y, years))[-1]
@@ -102,25 +128,33 @@ model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
 
 # -----------------------------------------------------
-# 7. Evaluation Metrics
+# 8. Metrics
 # -----------------------------------------------------
 
-r2_test = r2_score(y_test, y_pred)
-mae = mean_absolute_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+adj_r2 = 1 - (1 - r2) * (len(y_test) - 1) / (len(y_test) - X_test.shape[1] - 1)
 rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+mae = mean_absolute_error(y_test, y_pred)
 explained_var = explained_variance_score(y_test, y_pred)
 
+residuals = y_test - y_pred
+
 # -----------------------------------------------------
-# 8. Feature Importance
+# 9. Feature Importance (Top Drivers)
 # -----------------------------------------------------
 
 importance_df = pd.DataFrame({
-    "Feature": features,
-    "Importance": model.feature_importances_
-}).sort_values("Importance", ascending=False)
+    "Feature": clean_feature_names,
+    "Coefficient": model.coef_
+})
+
+importance_df["Abs_Coefficient"] = importance_df["Coefficient"].abs()
+importance_df = importance_df.sort_values(
+    "Abs_Coefficient", ascending=False
+).head(15)
 
 # -----------------------------------------------------
-# 9. Output Results
+# 10. Output
 # -----------------------------------------------------
 
 print("\nModel Performance Summary\n")
@@ -134,10 +168,13 @@ print(f"Mean R² : {country_cv_r2.mean():.4f}")
 print(f"Std R²  : {country_cv_r2.std():.4f}\n")
 
 print("Held-out Year Test Performance")
-print(f"R² Score            : {r2_test:.4f}")
+print(f"R² Score            : {r2:.4f}")
+print(f"Adjusted R²         : {adj_r2:.4f}")
 print(f"Explained Variance  : {explained_var:.4f}")
 print(f"RMSE                : {rmse:.4f}")
-print(f"MAE                 : {mae:.4f}\n")
+print(f"MAE                 : {mae:.4f}")
+print(f"Residual Mean       : {residuals.mean():.6f}")
+print(f"Residual Std        : {residuals.std():.4f}\n")
 
 print("Top Drivers of World Power Index")
-print(importance_df.to_string(index=False))
+print(importance_df[["Feature", "Coefficient"]].to_string(index=False))
