@@ -1,13 +1,13 @@
 # =====================================================
 # World Power Index — Leak-Free Interpretable Model
 # ElasticNet + Interaction Features
-# Year-wise CV (Primary) + Country-wise CV (Robustness)
+# STRICT TimeSeriesSplit (Past → Future Only)
 # =====================================================
 
 import pandas as pd
 import numpy as np
 
-from sklearn.model_selection import LeaveOneGroupOut, GroupKFold
+from sklearn.model_selection import TimeSeriesSplit, GroupKFold
 from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 from sklearn.linear_model import ElasticNet
 from sklearn.pipeline import Pipeline
@@ -19,10 +19,13 @@ from sklearn.metrics import (
 )
 
 # -----------------------------------------------------
-# 1. Load Dataset
+# 1. Load & STRICTLY SORT DATA BY YEAR
 # -----------------------------------------------------
 
 df = pd.read_excel("data/World_Power_Dataset_Combined.xlsx")
+
+# CRITICAL: ensure temporal order
+df = df.sort_values(["Year", "Country_Name"]).reset_index(drop=True)
 
 target = "World_Power_Index"
 
@@ -45,7 +48,7 @@ years = df["Year"].values
 countries = df["Country_Name"].values
 
 # -----------------------------------------------------
-# 2. Leak-Free Pipeline (KEY FIX)
+# 2. Leak-Free Pipeline (NO PREPROCESSING LEAKAGE)
 # -----------------------------------------------------
 
 model_pipeline = Pipeline([
@@ -64,46 +67,54 @@ model_pipeline = Pipeline([
 ])
 
 # -----------------------------------------------------
-# 3. Year-wise Cross-Validation (PRIMARY)
+# 3. STRICT TEMPORAL SPLIT
+#    4 Years → 3 Valid Past→Future Splits
 # -----------------------------------------------------
 
-logo = LeaveOneGroupOut()
-year_r2_scores = []
+tscv = TimeSeriesSplit(n_splits=3)
 
-for train_idx, val_idx in logo.split(X, y, years):
-    X_train, X_val = X[train_idx], X[val_idx]
-    y_train, y_val = y[train_idx], y[val_idx]
+ts_r2_scores = []
+
+for fold, (train_idx, test_idx) in enumerate(tscv.split(X), start=1):
+
+    # SAFETY CHECK: training years must be strictly earlier
+    assert years[train_idx].max() < years[test_idx].min(), \
+        "Temporal leakage detected: future year in training set"
+
+    X_train, X_test = X[train_idx], X[test_idx]
+    y_train, y_test = y[train_idx], y[test_idx]
 
     model_pipeline.fit(X_train, y_train)
-    preds = model_pipeline.predict(X_val)
+    preds = model_pipeline.predict(X_test)
 
-    year_r2_scores.append(r2_score(y_val, preds))
+    ts_r2_scores.append(r2_score(y_test, preds))
 
-year_r2_scores = np.array(year_r2_scores)
+ts_r2_scores = np.array(ts_r2_scores)
 
 # -----------------------------------------------------
-# 4. Country-wise Cross-Validation (ROBUSTNESS)
+# 4. Country-wise Cross-Validation (ROBUSTNESS CHECK)
 # -----------------------------------------------------
 
 gkf = GroupKFold(n_splits=5)
 country_r2_scores = []
 
-for train_idx, val_idx in gkf.split(X, y, countries):
-    X_train, X_val = X[train_idx], X[val_idx]
-    y_train, y_val = y[train_idx], y[val_idx]
+for train_idx, test_idx in gkf.split(X, y, countries):
+
+    X_train, X_test = X[train_idx], X[test_idx]
+    y_train, y_test = y[train_idx], y[test_idx]
 
     model_pipeline.fit(X_train, y_train)
-    preds = model_pipeline.predict(X_val)
+    preds = model_pipeline.predict(X_test)
 
-    country_r2_scores.append(r2_score(y_val, preds))
+    country_r2_scores.append(r2_score(y_test, preds))
 
 country_r2_scores = np.array(country_r2_scores)
 
 # -----------------------------------------------------
-# 5. Final Held-out Year Evaluation
+# 5. FINAL HELD-OUT YEAR (LAST TEMPORAL SPLIT)
 # -----------------------------------------------------
 
-train_idx, test_idx = list(logo.split(X, y, years))[-1]
+train_idx, test_idx = list(tscv.split(X))[-1]
 
 X_train, X_test = X[train_idx], X[test_idx]
 y_train, y_test = y[train_idx], y[test_idx]
@@ -116,7 +127,6 @@ y_pred = model_pipeline.predict(X_test)
 # -----------------------------------------------------
 
 r2 = r2_score(y_test, y_pred)
-adj_r2 = 1 - (1 - r2) * (len(y_test) - 1) / (len(y_test) - X_train.shape[1] - 1)
 rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 mae = mean_absolute_error(y_test, y_pred)
 explained_var = explained_variance_score(y_test, y_pred)
@@ -124,40 +134,41 @@ explained_var = explained_variance_score(y_test, y_pred)
 residuals = y_test - y_pred
 
 # -----------------------------------------------------
-# 7. Interpretable Feature Importance (FINAL MODEL)
+# 7. Interpretable Feature Importance
 # -----------------------------------------------------
 
 poly = model_pipeline.named_steps["poly"]
 elastic = model_pipeline.named_steps["model"]
 
 feature_names = poly.get_feature_names_out(base_features)
+
 coef_df = pd.DataFrame({
     "Feature": feature_names,
     "Coefficient": elastic.coef_
 })
 
 coef_df["Abs_Coefficient"] = coef_df["Coefficient"].abs()
+
 top_features = coef_df.sort_values(
     "Abs_Coefficient", ascending=False
-).head(15)
+).head(7)
 
 # -----------------------------------------------------
 # 8. Output
 # -----------------------------------------------------
 
-print("\nLeak-Free Model Performance Summary\n")
+print("\nLeak-Free Model Performance Summary (STRICT Temporal)\n")
 
-print("Year-wise Cross-Validation (Primary)")
-print(f"Mean R² : {year_r2_scores.mean():.4f}")
-print(f"Std R²  : {year_r2_scores.std():.4f}\n")
+print("TimeSeriesSplit (Past → Future Only)")
+print(f"Mean R² : {ts_r2_scores.mean():.4f}")
+print(f"Std R²  : {ts_r2_scores.std():.4f}\n")
 
-print("Country-wise Cross-Validation (Robustness)")
+print("Country-wise Robustness CV")
 print(f"Mean R² : {country_r2_scores.mean():.4f}")
 print(f"Std R²  : {country_r2_scores.std():.4f}\n")
 
-print("Held-out Year Test Performance")
+print("Final Held-out Year Performance")
 print(f"R² Score            : {r2:.4f}")
-print(f"Adjusted R²         : {adj_r2:.4f}")
 print(f"Explained Variance  : {explained_var:.4f}")
 print(f"RMSE                : {rmse:.4f}")
 print(f"MAE                 : {mae:.4f}")
