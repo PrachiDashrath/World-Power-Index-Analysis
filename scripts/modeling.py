@@ -1,15 +1,16 @@
 # =====================================================
-# World Power Index Modeling
-# ElasticNet with Interpretable Interaction Features
+# World Power Index — Leak-Free Interpretable Model
+# ElasticNet + Interaction Features
 # Year-wise CV (Primary) + Country-wise CV (Robustness)
 # =====================================================
 
 import pandas as pd
 import numpy as np
 
-from sklearn.model_selection import LeaveOneGroupOut, GroupKFold, cross_val_score
+from sklearn.model_selection import LeaveOneGroupOut, GroupKFold
 from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 from sklearn.linear_model import ElasticNet
+from sklearn.pipeline import Pipeline
 from sklearn.metrics import (
     r2_score,
     mean_absolute_error,
@@ -37,102 +38,85 @@ base_features = [
 
 df[base_features] = df[base_features].apply(pd.to_numeric, errors="coerce")
 
-X = df[base_features]
-y = df[target]
+X = df[base_features].values
+y = df[target].values
 
-years = df["Year"]
-countries = df["Country_Name"]
-
-# -----------------------------------------------------
-# 2. Interaction Features (RENAMED FOR CLARITY)
-# -----------------------------------------------------
-
-poly = PolynomialFeatures(
-    degree=2,
-    interaction_only=True,
-    include_bias=False
-)
-
-X_poly = poly.fit_transform(X)
-raw_feature_names = poly.get_feature_names_out(base_features)
-
-# Clean interaction names (A B → A x B)
-clean_feature_names = []
-for name in raw_feature_names:
-    if " " in name:
-        parts = name.split(" ")
-        clean_feature_names.append(f"{parts[0]} x {parts[1]}")
-    else:
-        clean_feature_names.append(name)
-
-X_poly = pd.DataFrame(X_poly, columns=clean_feature_names)
+years = df["Year"].values
+countries = df["Country_Name"].values
 
 # -----------------------------------------------------
-# 3. Scaling
+# 2. Leak-Free Pipeline (KEY FIX)
 # -----------------------------------------------------
 
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X_poly)
+model_pipeline = Pipeline([
+    ("poly", PolynomialFeatures(
+        degree=2,
+        interaction_only=True,
+        include_bias=False
+    )),
+    ("scaler", StandardScaler()),
+    ("model", ElasticNet(
+        alpha=0.01,
+        l1_ratio=0.5,
+        max_iter=5000,
+        random_state=42
+    ))
+])
 
 # -----------------------------------------------------
-# 4. ElasticNet Model (Regularized & Interpretable)
+# 3. Year-wise Cross-Validation (PRIMARY)
 # -----------------------------------------------------
 
-model = ElasticNet(
-    alpha=0.01,
-    l1_ratio=0.5,
-    max_iter=5000,
-    random_state=42
-)
+logo = LeaveOneGroupOut()
+year_r2_scores = []
+
+for train_idx, val_idx in logo.split(X, y, years):
+    X_train, X_val = X[train_idx], X[val_idx]
+    y_train, y_val = y[train_idx], y[val_idx]
+
+    model_pipeline.fit(X_train, y_train)
+    preds = model_pipeline.predict(X_val)
+
+    year_r2_scores.append(r2_score(y_val, preds))
+
+year_r2_scores = np.array(year_r2_scores)
 
 # -----------------------------------------------------
-# 5. Year-wise Cross-Validation (PRIMARY)
+# 4. Country-wise Cross-Validation (ROBUSTNESS)
 # -----------------------------------------------------
 
-logo_year = LeaveOneGroupOut()
+gkf = GroupKFold(n_splits=5)
+country_r2_scores = []
 
-year_cv_r2 = cross_val_score(
-    model,
-    X_scaled,
-    y,
-    cv=logo_year,
-    groups=years,
-    scoring="r2"
-)
+for train_idx, val_idx in gkf.split(X, y, countries):
+    X_train, X_val = X[train_idx], X[val_idx]
+    y_train, y_val = y[train_idx], y[val_idx]
 
-# -----------------------------------------------------
-# 6. Country-wise Cross-Validation (ROBUSTNESS)
-# -----------------------------------------------------
+    model_pipeline.fit(X_train, y_train)
+    preds = model_pipeline.predict(X_val)
 
-gkf_country = GroupKFold(n_splits=5)
+    country_r2_scores.append(r2_score(y_val, preds))
 
-country_cv_r2 = cross_val_score(
-    model,
-    X_scaled,
-    y,
-    cv=gkf_country,
-    groups=countries,
-    scoring="r2"
-)
+country_r2_scores = np.array(country_r2_scores)
 
 # -----------------------------------------------------
-# 7. Held-out Year Evaluation
+# 5. Final Held-out Year Evaluation
 # -----------------------------------------------------
 
-train_idx, test_idx = list(logo_year.split(X_scaled, y, years))[-1]
+train_idx, test_idx = list(logo.split(X, y, years))[-1]
 
-X_train, X_test = X_scaled[train_idx], X_scaled[test_idx]
-y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+X_train, X_test = X[train_idx], X[test_idx]
+y_train, y_test = y[train_idx], y[test_idx]
 
-model.fit(X_train, y_train)
-y_pred = model.predict(X_test)
+model_pipeline.fit(X_train, y_train)
+y_pred = model_pipeline.predict(X_test)
 
 # -----------------------------------------------------
-# 8. Metrics
+# 6. Metrics
 # -----------------------------------------------------
 
 r2 = r2_score(y_test, y_pred)
-adj_r2 = 1 - (1 - r2) * (len(y_test) - 1) / (len(y_test) - X_test.shape[1] - 1)
+adj_r2 = 1 - (1 - r2) * (len(y_test) - 1) / (len(y_test) - X_train.shape[1] - 1)
 rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 mae = mean_absolute_error(y_test, y_pred)
 explained_var = explained_variance_score(y_test, y_pred)
@@ -140,32 +124,36 @@ explained_var = explained_variance_score(y_test, y_pred)
 residuals = y_test - y_pred
 
 # -----------------------------------------------------
-# 9. Feature Importance (Top Drivers)
+# 7. Interpretable Feature Importance (FINAL MODEL)
 # -----------------------------------------------------
 
-importance_df = pd.DataFrame({
-    "Feature": clean_feature_names,
-    "Coefficient": model.coef_
+poly = model_pipeline.named_steps["poly"]
+elastic = model_pipeline.named_steps["model"]
+
+feature_names = poly.get_feature_names_out(base_features)
+coef_df = pd.DataFrame({
+    "Feature": feature_names,
+    "Coefficient": elastic.coef_
 })
 
-importance_df["Abs_Coefficient"] = importance_df["Coefficient"].abs()
-importance_df = importance_df.sort_values(
+coef_df["Abs_Coefficient"] = coef_df["Coefficient"].abs()
+top_features = coef_df.sort_values(
     "Abs_Coefficient", ascending=False
 ).head(15)
 
 # -----------------------------------------------------
-# 10. Output
+# 8. Output
 # -----------------------------------------------------
 
-print("\nModel Performance Summary\n")
+print("\nLeak-Free Model Performance Summary\n")
 
 print("Year-wise Cross-Validation (Primary)")
-print(f"Mean R² : {year_cv_r2.mean():.4f}")
-print(f"Std R²  : {year_cv_r2.std():.4f}\n")
+print(f"Mean R² : {year_r2_scores.mean():.4f}")
+print(f"Std R²  : {year_r2_scores.std():.4f}\n")
 
 print("Country-wise Cross-Validation (Robustness)")
-print(f"Mean R² : {country_cv_r2.mean():.4f}")
-print(f"Std R²  : {country_cv_r2.std():.4f}\n")
+print(f"Mean R² : {country_r2_scores.mean():.4f}")
+print(f"Std R²  : {country_r2_scores.std():.4f}\n")
 
 print("Held-out Year Test Performance")
 print(f"R² Score            : {r2:.4f}")
@@ -176,5 +164,5 @@ print(f"MAE                 : {mae:.4f}")
 print(f"Residual Mean       : {residuals.mean():.6f}")
 print(f"Residual Std        : {residuals.std():.4f}\n")
 
-print("Top Drivers of World Power Index")
-print(importance_df[["Feature", "Coefficient"]].to_string(index=False))
+print("Top Drivers of World Power Index (Interpretable)")
+print(top_features[["Feature", "Coefficient"]].to_string(index=False))
