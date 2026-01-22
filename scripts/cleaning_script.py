@@ -11,7 +11,7 @@ from sklearn.preprocessing import StandardScaler,MinMaxScaler
 
 final_df = pd.DataFrame()
 for year in [2021,2022,2023,2024]:
-    df = pd.read_excel(f"data/World_Power_Dataset_{year}.xlsx")
+    df = pd.read_excel(f"Original Datasets/World_Power_Dataset_{year}.xlsx")
 
 
     money_cols = [
@@ -211,5 +211,6 @@ for year in [2021,2022,2023,2024]:
 
     df_scaled[["Country_Name","Year"]] = df[["Country_Name","Year"]]
     final_df = pd.concat([final_df, df_scaled], ignore_index=True)
+
 
 final_df.to_excel("data/World_Power_Dataset_Combined.xlsx", index=False)
