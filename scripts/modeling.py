@@ -2,6 +2,7 @@
 # World Power Index — Leak-Free Interpretable Model
 # ElasticNet + Interaction Features
 # STRICT TimeSeriesSplit (Past → Future Only)
+# STABLE FEATURE IMPORTANCE (Averaged Across Folds)
 # =====================================================
 
 import pandas as pd
@@ -19,12 +20,10 @@ from sklearn.metrics import (
 )
 
 # -----------------------------------------------------
-# 1. Load & STRICTLY SORT DATA BY YEAR
+# 1. Load & Sort Data
 # -----------------------------------------------------
 
 df = pd.read_excel("data/World_Power_Dataset_Combined.xlsx")
-
-# CRITICAL: ensure temporal order
 df = df.sort_values(["Year", "Country_Name"]).reset_index(drop=True)
 
 target = "World_Power_Index"
@@ -48,7 +47,7 @@ years = df["Year"].values
 countries = df["Country_Name"].values
 
 # -----------------------------------------------------
-# 2. Leak-Free Pipeline (NO PREPROCESSING LEAKAGE)
+# 2. Model Pipeline
 # -----------------------------------------------------
 
 model_pipeline = Pipeline([
@@ -67,19 +66,19 @@ model_pipeline = Pipeline([
 ])
 
 # -----------------------------------------------------
-# 3. STRICT TEMPORAL SPLIT
-#    4 Years → 3 Valid Past→Future Splits
+# 3. STRICT TimeSeriesSplit (4 years → 3 splits)
 # -----------------------------------------------------
 
 tscv = TimeSeriesSplit(n_splits=3)
 
 ts_r2_scores = []
+coef_list = []
 
 for fold, (train_idx, test_idx) in enumerate(tscv.split(X), start=1):
 
-    # SAFETY CHECK: training years must be strictly earlier
+    # Hard safety check
     assert years[train_idx].max() < years[test_idx].min(), \
-        "Temporal leakage detected: future year in training set"
+        "Temporal leakage detected"
 
     X_train, X_test = X[train_idx], X[test_idx]
     y_train, y_test = y[train_idx], y[test_idx]
@@ -89,10 +88,37 @@ for fold, (train_idx, test_idx) in enumerate(tscv.split(X), start=1):
 
     ts_r2_scores.append(r2_score(y_test, preds))
 
+    # ---- collect coefficients for stability analysis ----
+    poly = model_pipeline.named_steps["poly"]
+    elastic = model_pipeline.named_steps["model"]
+
+    coef_list.append(elastic.coef_)
+
 ts_r2_scores = np.array(ts_r2_scores)
+coef_matrix = np.vstack(coef_list)
 
 # -----------------------------------------------------
-# 4. Country-wise Cross-Validation (ROBUSTNESS CHECK)
+# 4. STABLE FEATURE IMPORTANCE (MEAN + STD)
+# -----------------------------------------------------
+
+feature_names = poly.get_feature_names_out(base_features)
+
+coef_df = pd.DataFrame(coef_matrix, columns=feature_names)
+
+coef_summary = pd.DataFrame({
+    "Feature": feature_names,
+    "Mean_Coefficient": coef_df.mean(axis=0),
+    "Std_Coefficient": coef_df.std(axis=0),
+})
+
+coef_summary["Abs_Mean"] = coef_summary["Mean_Coefficient"].abs()
+
+top_features = coef_summary.sort_values(
+    "Abs_Mean", ascending=False
+).head(11)
+
+# -----------------------------------------------------
+# 5. Country-wise Robustness Check
 # -----------------------------------------------------
 
 gkf = GroupKFold(n_splits=5)
@@ -111,7 +137,7 @@ for train_idx, test_idx in gkf.split(X, y, countries):
 country_r2_scores = np.array(country_r2_scores)
 
 # -----------------------------------------------------
-# 5. FINAL HELD-OUT YEAR (LAST TEMPORAL SPLIT)
+# 6. Final Held-out Year Evaluation (Last Split)
 # -----------------------------------------------------
 
 train_idx, test_idx = list(tscv.split(X))[-1]
@@ -123,7 +149,7 @@ model_pipeline.fit(X_train, y_train)
 y_pred = model_pipeline.predict(X_test)
 
 # -----------------------------------------------------
-# 6. Metrics
+# 7. Metrics
 # -----------------------------------------------------
 
 r2 = r2_score(y_test, y_pred)
@@ -134,32 +160,12 @@ explained_var = explained_variance_score(y_test, y_pred)
 residuals = y_test - y_pred
 
 # -----------------------------------------------------
-# 7. Interpretable Feature Importance
-# -----------------------------------------------------
-
-poly = model_pipeline.named_steps["poly"]
-elastic = model_pipeline.named_steps["model"]
-
-feature_names = poly.get_feature_names_out(base_features)
-
-coef_df = pd.DataFrame({
-    "Feature": feature_names,
-    "Coefficient": elastic.coef_
-})
-
-coef_df["Abs_Coefficient"] = coef_df["Coefficient"].abs()
-
-top_features = coef_df.sort_values(
-    "Abs_Coefficient", ascending=False
-).head(7)
-
-# -----------------------------------------------------
 # 8. Output
 # -----------------------------------------------------
 
 print("\nLeak-Free Model Performance Summary (STRICT Temporal)\n")
 
-print("TimeSeriesSplit (Past → Future Only)")
+print("TimeSeriesSplit CV (Past → Future)")
 print(f"Mean R² : {ts_r2_scores.mean():.4f}")
 print(f"Std R²  : {ts_r2_scores.std():.4f}\n")
 
@@ -175,5 +181,9 @@ print(f"MAE                 : {mae:.4f}")
 print(f"Residual Mean       : {residuals.mean():.6f}")
 print(f"Residual Std        : {residuals.std():.4f}\n")
 
-print("Top Drivers of World Power Index (Interpretable)")
-print(top_features[["Feature", "Coefficient"]].to_string(index=False))
+print("STABLE DRIVERS of World Power Index")
+print(top_features[[
+    "Feature",
+    "Mean_Coefficient",
+    "Std_Coefficient"
+]].to_string(index=False))
