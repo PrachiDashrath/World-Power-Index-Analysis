@@ -29,22 +29,26 @@ df = df.sort_values(["Year", "Country_Name"]).reset_index(drop=True)
 
 target = "World_Power_Index"
 
+
 base_features = [
     "Economic_Power_Index",
     "Military_Power_Index",
     "Tech_Power_Index",
-    "Strategic_Leverage_Index",
     "Share_of_Global_GDP_pct",
     "Satellite_Ownership_Count",
     "Defense_Expenditure_pct_GDP",
     "Foreign_Exchange_Reserves_USD",
-    "Outbound_FDI_USD"
+    "Outbound_FDI_USD",
+    "Defence_Exports_USD",
+    "Permanent_UNSC_Membership",
+    "Nuclear_Power_Status",
+    "International_Aid_Provider"
 ]
 
 df[base_features] = df[base_features].apply(pd.to_numeric, errors="coerce")
 
-# X = df[base_features].values
-X = df.drop(columns=[target, "Country_Name", "Year"]).values
+X = df[base_features].values
+# X = df.drop(columns=[target, "Country_Name", "Year"]).values
 y = df[target].values
 years = df["Year"].values
 
@@ -127,7 +131,8 @@ coef_matrix = np.vstack(coef_list)
 # -----------------------------------------------------
 
 poly = best_model.named_steps["poly"]
-feature_names = poly.get_feature_names_out(df.drop(columns=[target, "Country_Name", "Year"]).columns)
+# feature_names = poly.get_feature_names_out(df.drop(columns=[target, "Country_Name", "Year"]).columns)
+feature_names = poly.get_feature_names_out(base_features)
 
 coef_df = pd.DataFrame(coef_matrix, columns=feature_names)
 
