@@ -202,9 +202,13 @@ for p in ax.patches:
         textcoords="offset points"
     )
 
-plt.xticks(rotation=20)
+# Make x-axis labels horizontal & clean
+plt.xticks(rotation=0, ha="center")
+
 plt.title("Model Comparison Based on Year-wise Cross-Validated R²")
-plt.ylim(0.6, 0.8)
 plt.ylabel("Year-wise CV R²")
+plt.ylim(0.6, 0.8)
+
+# Slight bottom padding so labels breathe
 plt.tight_layout()
 plt.show()
