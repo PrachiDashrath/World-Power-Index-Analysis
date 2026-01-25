@@ -45,43 +45,12 @@ print(f"Years Covered   : {df['Year'].min()} – {df['Year'].max()}")
 print("\nMissing Values:\n")
 print(df[features + [target]].isna().sum())
 
-# -----------------------------------------------------
-# 3. Core Correlation Heatmap
-# -----------------------------------------------------
-
-plt.figure(figsize=(10, 6))
-sns.heatmap(
-    df[features + [target]].corr(),
-    annot=True,
-    fmt=".2f",
-    cmap="coolwarm",
-    center=0,
-    linewidths=0.5
-)
-plt.title("Correlation Heatmap: Power Indicators vs World Power Index")
-plt.tight_layout()
-plt.show()
-
-# -----------------------------------------------------
-# 4. Boxplots BEFORE Outlier Treatment
-# -----------------------------------------------------
 
 outlier_cols = [
     "Share_of_Global_GDP_pct",
     "Satellite_Ownership_Count",
     "Defense_Expenditure_pct_GDP"
 ]
-
-plt.figure(figsize=(10, 4))
-sns.boxplot(data=df[outlier_cols])
-plt.title("Boxplots Before Outlier Treatment")
-plt.xticks(rotation=15)
-plt.tight_layout()
-plt.show()
-
-# -----------------------------------------------------
-# 5. Outlier Treatment (IQR Clipping)
-# -----------------------------------------------------
 
 df_out = df.copy()
 
@@ -92,17 +61,6 @@ for col in outlier_cols:
     lower = Q1 - 1.5 * IQR
     upper = Q3 + 1.5 * IQR
     df_out[col] = df_out[col].clip(lower, upper)
-
-# -----------------------------------------------------
-# 6. Boxplots AFTER Outlier Treatment
-# -----------------------------------------------------
-
-plt.figure(figsize=(10, 4))
-sns.boxplot(data=df_out[outlier_cols])
-plt.title("Boxplots After Outlier Treatment")
-plt.xticks(rotation=15)
-plt.tight_layout()
-plt.show()
 
 # -----------------------------------------------------
 # 7. Key Economic Relationship
@@ -122,22 +80,6 @@ sns.regplot(
 )
 plt.title("Share of Global GDP vs World Power Index")
 plt.xlabel("Share of Global GDP (%)")
-plt.ylabel("World Power Index")
-plt.tight_layout()
-plt.show()
-
-# -----------------------------------------------------
-# 7A. Strategic Force Multiplier (Chokepoints)
-# -----------------------------------------------------
-
-plt.figure(figsize=(9,5))
-sns.boxplot(
-    x="Geostrategic_Chokepoint_Count",
-    y="World_Power_Index",
-    data=df
-)
-plt.title("Impact of Geostrategic Chokepoint Control on World Power Index")
-plt.xlabel("Geostrategic Chokepoint Count")
 plt.ylabel("World Power Index")
 plt.tight_layout()
 plt.show()
@@ -169,43 +111,6 @@ plt.tight_layout()
 plt.show()
 
 # -----------------------------------------------------
-# 9. Neat Economic Drivers vs Target (FIXED VISUAL)
-# -----------------------------------------------------
-
-economic_features = [
-    "Share_of_Global_GDP_pct",
-    "Foreign_Exchange_Reserves_USD",
-    "Import_Rank_Global",
-    "Trade_Partners_Count",
-    "Outbound_FDI_USD",
-    "Economic_Power_Index"
-]
-
-corr_with_target = (
-    df[economic_features]
-    .corrwith(df[target])
-    .sort_values(ascending=True)
-)
-
-corr_df = pd.DataFrame(corr_with_target, columns=["Correlation"])
-
-plt.figure(figsize=(5,6))
-sns.heatmap(
-    corr_df,
-    annot=True,
-    fmt=".2f",
-    cmap="coolwarm",
-    center=0,
-    linewidths=0.8,
-    cbar_kws={"shrink": 0.8, "label": "Correlation Strength"}
-)
-plt.title("Economic Drivers vs World Power Index", fontsize=13, pad=12)
-plt.xlabel("")
-plt.ylabel("")
-plt.tight_layout()
-plt.show()
-
-# -----------------------------------------------------
 # 10. Strong vs Weak Feature Segmentation
 # -----------------------------------------------------
 
@@ -220,7 +125,7 @@ corr_all_df = pd.DataFrame(corr_all, columns=["Correlation"])
 threshold = 0.5
 
 high_corr = corr_all_df[corr_all_df["Correlation"].abs() >= threshold]
-low_corr = corr_all_df[corr_all_df["Correlation"].abs() < threshold]
+low_corr = corr_all_df[corr_all_df["Correlation"].abs() < threshold].head(11)
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 8))
 
@@ -263,11 +168,11 @@ print("- Weak drivers add nuance but not predictive dominance.")
 # -----------------------------------------------------
 
 model_results = {
-    "ElasticNet (Before Tuning)": 0.72,
-    "ElasticNet (After Tuning)": 0.77,
-    "Gaussian Process": 0.68,
-    "CatBoost": 0.71,
-    "Gradient Boosting": 0.69
+    "ElasticNet (Before Tuning)": 0.7212,
+    "ElasticNet (After Tuning)": 0.7708,
+    "Gaussian Process": 0.6878,
+    "CatBoost": 0.7122,
+    "Gradient Boosting": 0.6934
 }
 
 model_df = pd.DataFrame(
@@ -276,13 +181,30 @@ model_df = pd.DataFrame(
 )
 
 plt.figure(figsize=(9,4))
-sns.barplot(
+
+ax = sns.barplot(
     data=model_df,
     x="Model",
     y="Year-wise CV R²"
 )
+
+# Add values on top of bars
+for p in ax.patches:
+    value = p.get_height()
+    ax.annotate(
+        f"{value:.4f}",
+        (p.get_x() + p.get_width() / 2., value),
+        ha="center",
+        va="bottom",
+        fontsize=10,
+        fontweight="bold",
+        xytext=(0, 3),
+        textcoords="offset points"
+    )
+
 plt.xticks(rotation=20)
 plt.title("Model Comparison Based on Year-wise Cross-Validated R²")
 plt.ylim(0.6, 0.8)
+plt.ylabel("Year-wise CV R²")
 plt.tight_layout()
 plt.show()
