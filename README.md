@@ -61,28 +61,6 @@ These indices represent high-level dimensions of global power and are used for d
 
 ---
 
-## Project Structure
-World-Power-Index-Analysis/
-│
-├── data/
-│ ├── World_Power_Dataset.xlsx
-│ ├── World_Power_Dataset_CLEANED.xlsx
-│ └── World_Power_Dataset_FEATURE_ENGINEERED.xlsx
-│
-├── scripts/
-│ ├── data_cleaning_preparation.py
-│ ├── eda_analysis.py
-│ └── feature_engineering.py
-│
-├── outputs/
-│ └── figures/
-│
-├── README.md
-└── requirements.txt
-
-
----
-
 ## Tools & Libraries
 - Python
 - pandas, numpy
@@ -100,14 +78,6 @@ The primary goal of this project is to:
 
 ---
 
-## Status
-- Data cleaning: ✅ Completed  
-- EDA: ✅ Completed  
-- Feature engineering: ✅ Completed  
-Modeling & Evaluation: ✅ Completed
-
-
----
 
 ### 4. Modeling & Evaluation
 A supervised regression model was developed to explain and predict the **World Power Index** using both raw indicators and engineered composite indices.
@@ -152,11 +122,9 @@ Install dependencies:
 
 pip install -r requirements.txt
 
-python scripts/data_cleaning_preparation.py
+python scripts/cleaning_script.py
 
-python scripts/eda_analysis.py
+python scripts/eda.py
 
-python scripts/feature_engineering.py
-
-python scripts/modeling.py
+python scripts/tuned_model.py
 
